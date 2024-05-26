@@ -1,70 +1,101 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { StyleSheet, View } from "react-native";
+import { Link, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { FontAwesome6 } from "@expo/vector-icons";
+import ParallaxScrollView from "@/components/ParallaxScrollView";
+import CircularChart from "@/components/CircularChart";
+import CategoryList from "@/components/CategoryList";
+import Sizes from "@/utils/Sizes";
+import services from "../../utils/services";
+import { client } from "../../utils/KindeConfig";
+import { supabase } from "../../utils/superbaseConfig";
+import Colors from "@/utils/Colors";
+import Header from "@/components/Header";
+import { Category } from "@/types";
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const [categoryList, setCategoryList] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    getCategories();
+  }, []);
+
+  const checkUserAuth = async () => {
+    const result = await services.getData("login");
+
+    if (result !== "true") {
+      router.replace("/login");
+    }
+
+    const user = await client.getUserDetails();
+    if (!user.email && !user.id) {
+      router.replace("/login");
+    }
+
+    return user;
+  };
+
+  async function getCategories() {
+    setLoading(true);
+    const user = await checkUserAuth();
+    if (!user?.email) {
+      return;
+    }
+
+    let { data, error } = await supabase
+      .from("category")
+      .select("*,category_item(*)")
+      .eq("created_by", user.email)
+      .order("created_at", { ascending: false });
+
+    if (data) {
+      setCategoryList(data);
+      setLoading(false);
+    }
+
+    if (error) {
+      console.error(error);
+    }
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <View>
+      <ParallaxScrollView refreshControl={getCategories} refreshing={loading}>
+        <View style={styles.container}>
+          <View>
+            <Header />
+            <CircularChart categorys={categoryList} />
+            <View>
+              <CategoryList categoryList={categoryList} />
+            </View>
+          </View>
+        </View>
+      </ParallaxScrollView>
+
+      <Link href={"/addNewCategory"} style={styles.addNewBtn}>
+        <FontAwesome6
+          name="circle-plus"
+          size={Sizes.XLG}
+          color={Colors.PRIMARY}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </Link>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    backgroundColor: Colors.WHITE,
+    height: "100%",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+
+  addNewBtn: {
+    position: "absolute",
+    right: Sizes.LG,
+    bottom: 20,
+    zIndex: 10,
+    backgroundColor: Colors.WHITE,
   },
 });
